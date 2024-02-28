@@ -7,10 +7,10 @@ J. Zheng, K. Li, E. Tovar and M. Guizani, "Federated Learning for Energy-balance
 
 # Citation
 @inproceedings{zheng2021federated,
-  title={Federated learning for energy-balanced client selection in mobile edge computing},
-  author={Zheng, Jingjing and Li, Kai and Tovar, Eduardo and Guizani, Mohsen},
-  booktitle={2021 International Wireless Communications and Mobile Computing (IWCMC)},
-  pages={1942--1947},
-  year={2021},
-  organization={IEEE}
+  title={Federated learning for energy-balanced client selection in mobile edge computing},  
+  author={Zheng, Jingjing and Li, Kai and Tovar, Eduardo and Guizani, Mohsen},  
+  booktitle={2021 International Wireless Communications and Mobile Computing (IWCMC)},  
+  pages={1942--1947},  
+  year={2021},  
+  organization={IEEE}  
 }
