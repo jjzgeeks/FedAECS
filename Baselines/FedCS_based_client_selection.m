@@ -4,7 +4,8 @@
 % Department of Electrical and Computer Engineering, Faculty of Engineering, University of Porto, Porto, Portugal
 % email: zheng@isep.ipp.pt
 % November 2020; Last revision: 12-December-2020
-%%%%%% Client selection based on dataset (accuracy) sequence
+%%%%%% Client selection as many clients as possible(FedCS) sequence, that is, the
+%%%%%% clients that satisfy the time and bandwidth constrains select as many clients as possible
 
 clc
 clear all
@@ -14,7 +15,7 @@ tic
  load ('./../Original_data_infomation/original_data_1000_20.mat');
 % load ('./../Original_data_infomation/original_data_1000_40.mat');
 % load ('./../Original_data_infomation/original_data_1000_60.mat');
-% load ('./../Original_data_infomation/original_data_1000_80.mat');
+%  load ('./../Original_data_infomation/original_data_1000_80.mat');
 % load ('./../Original_data_infomation/original_data_1000_100.mat');
 
 All_clients_dataset_info; %each client dataset in each epoch
@@ -32,10 +33,10 @@ each_t_round_index = [];
 %All_clients_dataset_info = unifrnd(500, 1000, T_round, Number_of_clients)*1.0e+06;  % all client's data size info, which follow uniform distribution [500,1000]MB 1MB = 1.0e+06 byte
 mu = 1.7e-08; % system parameter
  B = 1.0e+06;% total bandwidth. 10MHz   unit: Hz
-%  B = 3.0e+06;
+% B = 3.0e+06;
 %  B = 5.0e+06;
-% B = 7.0e+06;
-%  B = 9.0e+06
+%  B = 7.0e+06;
+% B = 9.0e+06;
 
 xi = 1.0e-28;
 N0 = 1.0e-08; % Channel noise    unit dBm/Hz
@@ -49,7 +50,7 @@ The_num_of_local_iters_each_global_iter = 4; % the number of local iterations in
 ratio = 0;
 T_round = 1000;  % the total number of t_round or iteration
 each_t_round_ratio = [];
-Accuracy_based_cumulative_t_round_ratio = [];
+FedCS_based_cumulative_t_round_ratio = [];
 each_t_round_index = [];
 obj_store = [];
 
@@ -69,7 +70,8 @@ for t_round = 1 : 1 : T_round
 
  %% calculate the total time (delay)
     T = The_num_of_iters_each_epoch * ( The_num_of_local_iters_each_global_iter * unit_cost.* D./f + S./(b.*log2(1 + (P .* G)./ (N0 .* b))));  % time consumption
-  
+    
+
     num = length(P);  % the number of users.
     init_client_select = zeros(1,num); % Initialize the list of client selections
     beta_prime = [];
@@ -106,8 +108,8 @@ for t_round = 1 : 1 : T_round
       energy_based_select = zeros(1,length(origin_qualified_client_index));
       
      %preliminary_qualified_client_select = origin_qualified_client_index;
-     preliminary_qualified_client_select_info = [origin_qualified_client_index;init_qualified_client_dataset; init_qualified_client_accuracy; init_qualified_client_energy; init_qualified_client_bandwidth];
-     sorted_qualified_client_select = sortrows(preliminary_qualified_client_select_info',2)'; %% sorted qualified client select accroding to client dataset
+     preliminary_qualified_client_select_info = [origin_qualified_client_index;init_qualified_client_dataset; init_qualified_client_accuracy;  init_qualified_client_energy; init_qualified_client_bandwidth];
+     sorted_qualified_client_select = sortrows(preliminary_qualified_client_select_info',5)'; %% sorted qualified client select accroding to client bandwidth
 
     %%%%%%%%%%%%%%%    output unqualified clients
      origin_preliminary_screening_unqualified_client_index = origin_unqualified_client_index;  %%%%************ need to be concatenated
@@ -126,41 +128,20 @@ for t_round = 1 : 1 : T_round
      obj = [];
      All_select = [];
      qualified_selection = [];
-     gene_beta = zeros(1, length(init_client_index));
-     gene_beta(length(gene_beta)) = 1;
-     beta_star = gene_beta; 
-        
-%%%%%%%%%%%%%%%%  Select the highest accuracy(dataset) or 
-%%%%%%%%%%%%%%%%  combination of the highest client and  the lowest
-%%%%%%%%%%%%%%%%  accuracy's clients
- while( i <= length(origin_qualified_client_index)-1)
-       Acc = log(1+ mu*sum( beta_star * client_dataset'));
-      if ( epsilon_0 <= Acc  &&   beta_star *  client_bandwidth' <= B)
-             f_obj_star = sum(beta_star * client_energy') / Acc; % Calculate the objective function
-             obj_store = [obj_store, f_obj_star]; % Store the objective function value 
-             break; 
-      else
-         s = combntns(1:length(origin_qualified_client_index)-1,i);  % Find different combinations of selections for the last clients
-         row = size(s,1); % Calculate the number of rows
-         select = repmat(init_client_index,row,1); % generate the same number of rows 
-                                for  p = 1:row
-                                     select(p, s(p,:)) = 1; %%%%%%%%%XXXXXXXXXXXXXXXXXXXXXXXXXx
-                                end
-                                All_select = [All_select; select];  % List all possible client selection options
-                                Acc_list =  log(1+ mu*( All_select * client_dataset'));
-                                Bandwidth_list = log(1+ mu*( All_select * client_bandwidth'));
-                                for check_loop = 1: size(All_select,1) % Calculate the number of rows
-                                    if (epsilon_0 <= Acc_list(check_loop) && Bandwidth_list(check_loop) <= B)
-                                         disp('The objective function value is:');
-                                         f_obj_star = sum(All_select(check_loop) * client_energy') / Acc_list(check_loop);
-                                         obj_store = [obj_store, f_obj_star];
-                                         beta_star = All_select(check_loop);
-                                         break;  
-                                     end
-                                end
-                                i = i + 1;                              
-      end   
- end
+     beta_star = ones(1, length(init_client_index));
+     
+     
+     %%%%%%%%%%%%%%%%%  Select the cliets as many as possible 
+     while(i <= length(init_client_index)-1)
+             if(beta_star * client_bandwidth' <= B)
+               f_obj_star = sum(beta_star * client_energy') / log(1+ mu*sum( beta_star * client_dataset'));
+               obj_store = [obj_store, f_obj_star]; % Store the objective function value 
+               break;
+             else
+               beta_star(i) = 0;    % If the bandwidth dose not satisfy the bandwidth constraint,  we start to drop the smallest bandwidth one by one until the participating clients' bandwidth meets the constraints
+               i = i + 1;
+             end
+     end
      origin_index = cat(2,  origin_sorted_qualified_client_select_index, origin_unqualified_client_index)
      final_client_client_selection_index = cat(2, beta_star, beta_prime) % Ultimate optimal client selection strategy
      if (f_obj_star == +inf)
@@ -171,14 +152,12 @@ for t_round = 1 : 1 : T_round
  end  
   ratio = ratio + f_obj_star;
   t_round_value = [t_round_value, f_obj_star]; 
-  each_t_round_index = [each_t_round_index, t_round];
-  Accuracy_based_cumulative_t_round_ratio = [Accuracy_based_cumulative_t_round_ratio,  ratio];
+  FedCS_based_cumulative_t_round_ratio = [FedCS_based_cumulative_t_round_ratio,  ratio];
 end
 toc   
- save  original_data_1000_20_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio% save variable/vector  cumulative_t_round_ratio to y1data.mat
-% save  original_data_1000_40_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-% save  original_data_1000_60_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-%  save  original_data_1000_80_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-%  save  original_data_1000_100_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-
+ save  original_data_1000_20_FedCS_based_result  t_round_value FedCS_based_cumulative_t_round_ratio % save variable/vector  cumulative_t_round_ratio to y1data.mat
+% save  original_data_1000_40_FedCS_based_result  t_round_value FedCS_based_cumulative_t_round_ratio 
+% save  original_data_1000_60_FedCS_based_result  t_round_value FedCS_based_cumulative_t_round_ratio
+% save  original_data_1000_80_FedCS_based_result  t_round_value FedCS_based_cumulative_t_round_ratio
+%  save  original_data_1000_100_FedCS_based_result  t_round_value FedCS_based_cumulative_t_round_ratio
 

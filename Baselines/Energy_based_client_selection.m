@@ -4,7 +4,7 @@
 % Department of Electrical and Computer Engineering, Faculty of Engineering, University of Porto, Porto, Portugal
 % email: zheng@isep.ipp.pt
 % November 2020; Last revision: 12-December-2020
-%%%%%% Client selection based on dataset (accuracy) sequence
+%%%%%% Client selection based on energy sequence
 
 clc
 clear all
@@ -13,9 +13,9 @@ tic
 %%%%  Initialization and server access to client information, collect client's information 
  load ('./../Original_data_infomation/original_data_1000_20.mat');
 % load ('./../Original_data_infomation/original_data_1000_40.mat');
-% load ('./../Original_data_infomation/original_data_1000_60.mat');
-% load ('./../Original_data_infomation/original_data_1000_80.mat');
-% load ('./../Original_data_infomation/original_data_1000_100.mat');
+%  load ('./../Original_data_infomation/original_data_1000_60.mat');
+%  load ('./../Original_data_infomation/original_data_1000_80.mat');
+%  load ('./../Original_data_infomation/original_data_1000_100.mat');
 
 All_clients_dataset_info; %each client dataset in each epoch
 All_clients_bandwidth_info;  %each client bandwidth
@@ -32,8 +32,8 @@ each_t_round_index = [];
 %All_clients_dataset_info = unifrnd(500, 1000, T_round, Number_of_clients)*1.0e+06;  % all client's data size info, which follow uniform distribution [500,1000]MB 1MB = 1.0e+06 byte
 mu = 1.7e-08; % system parameter
  B = 1.0e+06;% total bandwidth. 10MHz   unit: Hz
-%  B = 3.0e+06;
-%  B = 5.0e+06;
+% B = 3.0e+06;
+% B = 5.0e+06;
 % B = 7.0e+06;
 %  B = 9.0e+06
 
@@ -42,6 +42,11 @@ N0 = 1.0e-08; % Channel noise    unit dBm/Hz
 T_max = 5;  % T_round  unit: s                     %global_target_accuracy = 1.0e-03; 
 S  = 100; % upload or transmit datasize  S = 100 kbits
 The_num_of_iters_each_epoch = 10;  % the number of global iterations in each epoch   B 
+% The_num_of_iters_each_epoch = 30;
+% The_num_of_iters_each_epoch = 50;
+% The_num_of_iters_each_epoch = 60;
+% The_num_of_iters_each_epoch = 90;
+
 The_num_of_local_iters_each_global_iter = 4; % the number of local iterations in each global iteration  A 
 % log(2.718) = 0.9999
 
@@ -49,7 +54,7 @@ The_num_of_local_iters_each_global_iter = 4; % the number of local iterations in
 ratio = 0;
 T_round = 1000;  % the total number of t_round or iteration
 each_t_round_ratio = [];
-Accuracy_based_cumulative_t_round_ratio = [];
+Energy_based_cumulative_t_round_ratio = [];
 each_t_round_index = [];
 obj_store = [];
 
@@ -69,7 +74,8 @@ for t_round = 1 : 1 : T_round
 
  %% calculate the total time (delay)
     T = The_num_of_iters_each_epoch * ( The_num_of_local_iters_each_global_iter * unit_cost.* D./f + S./(b.*log2(1 + (P .* G)./ (N0 .* b))));  % time consumption
-  
+    
+
     num = length(P);  % the number of users.
     init_client_select = zeros(1,num); % Initialize the list of client selections
     beta_prime = [];
@@ -106,8 +112,8 @@ for t_round = 1 : 1 : T_round
       energy_based_select = zeros(1,length(origin_qualified_client_index));
       
      %preliminary_qualified_client_select = origin_qualified_client_index;
-     preliminary_qualified_client_select_info = [origin_qualified_client_index;init_qualified_client_dataset; init_qualified_client_accuracy; init_qualified_client_energy; init_qualified_client_bandwidth];
-     sorted_qualified_client_select = sortrows(preliminary_qualified_client_select_info',2)'; %% sorted qualified client select accroding to client dataset
+     preliminary_qualified_client_select_info = [origin_qualified_client_index; init_qualified_client_energy; init_qualified_client_accuracy; init_qualified_client_dataset; init_qualified_client_bandwidth];
+     sorted_qualified_client_select = sortrows(preliminary_qualified_client_select_info',4)'; %% sorted qualified client select accroding to eta
 
     %%%%%%%%%%%%%%%    output unqualified clients
      origin_preliminary_screening_unqualified_client_index = origin_unqualified_client_index;  %%%%************ need to be concatenated
@@ -119,66 +125,65 @@ for t_round = 1 : 1 : T_round
      origin_sorted_qualified_client_select_index = sorted_qualified_client_select(1,:);    %%%%************
      sorted_qualified_client_select(1,:) = 0; % Initialize sorted_qualified_client index
      init_client_index = sorted_qualified_client_select(1,:);  %%%%% need to be concatenated
-     client_dataset = sorted_qualified_client_select(2,:);
+     client_energy = sorted_qualified_client_select(2,:);
      client_accuracy = sorted_qualified_client_select(3,:);
-     client_energy = sorted_qualified_client_select(4,:);
+     client_dataset = sorted_qualified_client_select(4,:);
      client_bandwidth = sorted_qualified_client_select(5,:);
      obj = [];
      All_select = [];
      qualified_selection = [];
-     gene_beta = zeros(1, length(init_client_index));
-     gene_beta(length(gene_beta)) = 1;
-     beta_star = gene_beta; 
-        
-%%%%%%%%%%%%%%%%  Select the highest accuracy(dataset) or 
-%%%%%%%%%%%%%%%%  combination of the highest client and  the lowest
-%%%%%%%%%%%%%%%%  accuracy's clients
- while( i <= length(origin_qualified_client_index)-1)
-       Acc = log(1+ mu*sum( beta_star * client_dataset'));
-      if ( epsilon_0 <= Acc  &&   beta_star *  client_bandwidth' <= B)
-             f_obj_star = sum(beta_star * client_energy') / Acc; % Calculate the objective function
-             obj_store = [obj_store, f_obj_star]; % Store the objective function value 
-             break; 
-      else
-         s = combntns(1:length(origin_qualified_client_index)-1,i);  % Find different combinations of selections for the last clients
-         row = size(s,1); % Calculate the number of rows
-         select = repmat(init_client_index,row,1); % generate the same number of rows 
-                                for  p = 1:row
-                                     select(p, s(p,:)) = 1; %%%%%%%%%XXXXXXXXXXXXXXXXXXXXXXXXXx
-                                end
-                                All_select = [All_select; select];  % List all possible client selection options
-                                Acc_list =  log(1+ mu*( All_select * client_dataset'));
-                                Bandwidth_list = log(1+ mu*( All_select * client_bandwidth'));
-                                for check_loop = 1: size(All_select,1) % Calculate the number of rows
-                                    if (epsilon_0 <= Acc_list(check_loop) && Bandwidth_list(check_loop) <= B)
-                                         disp('The objective function value is:');
-                                         f_obj_star = sum(All_select(check_loop) * client_energy') / Acc_list(check_loop);
-                                         obj_store = [obj_store, f_obj_star];
-                                         beta_star = All_select(check_loop);
-                                         break;  
-                                     end
-                                end
-                                i = i + 1;                              
-      end   
- end
+     beta_star = zeros(1, length(init_client_index));
+     
+%%%%%%%%%%%%%%%%  Select the top n users with the lowest energy consumption
+     alternative_select =  zeros(1,length(origin_qualified_client_index));
+     top_n = 2; %Select the top n users with the lowest energy consumption
+     while( top_n <= length(init_client_index) && 1 <= top_n)
+          for i =1: top_n      % Randomly select length(L)*fraction users
+                alternative_select(i) = 1;
+          end 
+          total_bandwidth = alternative_select *  client_bandwidth'; 
+          if(total_bandwidth <= B)  %%%  Check the bandwidth
+                 % disp("This client selection is qualified");
+                  f_obj_star = sum(alternative_select * client_energy') / log(1+ mu*sum( alternative_select * client_dataset')); % Calculate the objective function
+                  obj_store = [obj_store, f_obj_star]; % Store the objective function value 
+                   beta_star = alternative_select;
+                   break;
+          else
+               for i =1: top_n      % Randomly select length(L)*fraction users
+                    alternative_select(i) = 0;
+               end               
+               top_n = top_n - 1;
+          end       
+     end     
+%      %%%%%combination_list = zeros(1,length(eta)); % initialize the client selection list.
+%      while (i <= length(client_eta))
+%          if (client_bandwidth(i) <= B) 
+%                 f_obj = client_eta(i);  % output the optimal value of objective function 
+%                 init_client_index(i) = 1;
+%                 beta_star = init_client_index;
+%                 break;
+%          else
+%              i = i + 1;
+%          end
+%      end     
      origin_index = cat(2,  origin_sorted_qualified_client_select_index, origin_unqualified_client_index)
-     final_client_client_selection_index = cat(2, beta_star, beta_prime) % Ultimate optimal client selection strategy
+     final_client_client_selection_index = cat(2, alternative_select, beta_prime) % Ultimate optimal client selection strategy
      if (f_obj_star == +inf)
             disp('There is no qualified client selection because f_obj is invalid');    
      end  
- else
+  else
            disp('There is no qualified client selection because origin_qualified_client_index is empty');  
  end  
   ratio = ratio + f_obj_star;
   t_round_value = [t_round_value, f_obj_star]; 
   each_t_round_index = [each_t_round_index, t_round];
-  Accuracy_based_cumulative_t_round_ratio = [Accuracy_based_cumulative_t_round_ratio,  ratio];
+  Energy_based_cumulative_t_round_ratio = [Energy_based_cumulative_t_round_ratio,  ratio];
 end
 toc   
- save  original_data_1000_20_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio% save variable/vector  cumulative_t_round_ratio to y1data.mat
-% save  original_data_1000_40_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-% save  original_data_1000_60_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-%  save  original_data_1000_80_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
-%  save  original_data_1000_100_accuracy_based_result  t_round_value Accuracy_based_cumulative_t_round_ratio
+ save  original_data_1000_20_energy_based_result  t_round_value Energy_based_cumulative_t_round_ratio% save variable/vector  cumulative_t_round_ratio to y1data.mat
+% save  original_data_1000_40_energy_based_result  t_round_value Energy_based_cumulative_t_round_ratio
+% save  original_data_1000_60_energy_based_result  t_round_value Energy_based_cumulative_t_round_ratio
+% save  original_data_1000_80_energy_based_result  t_round_value Energy_based_cumulative_t_round_ratio
+% save  original_data_1000_100_energy_based_result t_round_value Energy_based_cumulative_t_round_ratio
 
 
